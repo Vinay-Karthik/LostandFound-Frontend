@@ -1,0 +1,20 @@
+# Node / dependencies
+node_modules/
+
+# Production build artifacts
+dist/
+dist.zip
+.vercel/
+
+# Environment files
+.env.local
+.env*.local
+
+# IDE & Editor
+.vscode/
+.idea/
+
+# System & logs
+*.log
+.DS_Store
+Thumbs.db

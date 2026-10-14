@@ -1,0 +1,589 @@
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { itemApi } from '../api/itemApi';
+import { ItemCard } from '../components/ItemCard';
+import { 
+  Search, SlidersHorizontal, ShoppingBag, Laptop, 
+  Shirt, FileText, Watch, Key, Box, LayoutGrid, 
+  Sparkles, MessageCircle, AlertCircle, Plus, X 
+} from 'lucide-react';
+
+const DEFAULT_CATEGORIES = [
+  'Electronics', 'Documents', 'Clothing', 'Accessories', 'Keys', 'Bags', 'Other'
+];
+
+export const Home = () => {
+  const { isAuthenticated, user } = useAuth();
+  const [items, setItems] = useState([]);
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  const loadData = () => {
+    Promise.allSettled([
+      itemApi.getItems({ size: 18, status: 'OPEN' }),
+      itemApi.getCategories(),
+    ]).then(([itemsSettled, catSettled]) => {
+      if (itemsSettled.status === 'fulfilled' && itemsSettled.value?.success && itemsSettled.value?.data) {
+        setItems(itemsSettled.value.data.content || []);
+      }
+      if (catSettled.status === 'fulfilled' && catSettled.value?.success && Array.isArray(catSettled.value?.data) && catSettled.value.data.length > 0) {
+        setCategories(catSettled.value.data);
+      } else {
+        setCategories(DEFAULT_CATEGORIES);
+      }
+    }).catch(console.error).finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadData();
+
+    const handleItemsUpdated = () => loadData();
+    window.addEventListener('items-updated', handleItemsUpdated);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') loadData();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') loadData();
+    }, 10000);
+
+    return () => {
+      window.removeEventListener('items-updated', handleItemsUpdated);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      clearInterval(interval);
+    };
+  }, []);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    navigate(`/items?search=${encodeURIComponent(searchQuery)}${selectedCategory ? `&category=${encodeURIComponent(selectedCategory)}` : ''}`);
+  };
+
+  const filteredItems = items.filter((item) => {
+    if (selectedCategory && item.category?.toLowerCase() !== selectedCategory.toLowerCase()) {
+      return false;
+    }
+    if (statusFilter !== 'ALL' && item.type !== statusFilter) {
+      return false;
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const matchTitle = item.title?.toLowerCase().includes(q);
+      const matchDesc = item.description?.toLowerCase().includes(q);
+      const matchCat = item.category?.toLowerCase().includes(q);
+      const matchLoc = item.location?.toLowerCase().includes(q);
+      if (!matchTitle && !matchDesc && !matchCat && !matchLoc) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  const getCategoryIcon = (name) => {
+    const n = (name || '').toLowerCase();
+    if (n.includes('elect')) return <Laptop size={20} color="#60A5FA" />;
+    if (n.includes('doc')) return <FileText size={20} color="#C084FC" />;
+    if (n.includes('cloth')) return <Shirt size={20} color="#22D3EE" />;
+    if (n.includes('access')) return <Watch size={20} color="#F472B6" />;
+    if (n.includes('key')) return <Key size={20} color="#A78BFA" />;
+    if (n.includes('bag')) return <ShoppingBag size={20} color="#34D399" />;
+    return <Box size={20} color="#4ADE80" />;
+  };
+
+  const getCategoryBg = (name) => {
+    const n = (name || '').toLowerCase();
+    if (n.includes('elect')) return '#1E1B4B';
+    if (n.includes('doc')) return '#581C87';
+    if (n.includes('cloth')) return '#0E7490';
+    if (n.includes('access')) return '#881337';
+    if (n.includes('key')) return '#4C1D95';
+    if (n.includes('bag')) return '#134E4A';
+    return '#14532D';
+  };
+
+  // ==========================================
+  // SCREEN 1: UNAUTHENTICATED LANDING PAGE
+  // ==========================================
+  if (!isAuthenticated) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem', paddingBottom: '3rem' }}>
+        {/* Hero Section */}
+        <section style={{
+          maxWidth: 1200,
+          margin: '0 auto',
+          padding: '3rem 2rem 1rem',
+          width: '100%',
+          display: 'grid',
+          gridTemplateColumns: '1.1fr 1fr',
+          alignItems: 'center',
+          gap: '3rem',
+        }}>
+          {/* Left Column Text */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <h1 style={{
+              fontSize: 'clamp(2.4rem, 4.5vw, 3.4rem)',
+              fontWeight: 800,
+              lineHeight: 1.15,
+              color: 'var(--text-primary)',
+              letterSpacing: '-0.03em',
+            }}>
+              Lost Something?<br />
+              <span style={{ color: 'var(--accent-blue)' }}>Let's Find It.</span>
+            </h1>
+
+            <p style={{
+              fontSize: '1.05rem',
+              color: 'var(--text-secondary)',
+              lineHeight: 1.6,
+              maxWidth: 480,
+            }}>
+              <strong>CampusLost&Found</strong> helps students connect with others to recover lost items or return found ones quickly and easily.
+            </p>
+
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+              <Link 
+                to="/register" 
+                className="btn btn-coral btn-lg"
+                style={{ borderRadius: 'var(--radius-full)', padding: '0.75rem 2rem', fontWeight: 700 }}
+              >
+                Get Started
+              </Link>
+              <Link 
+                to="/items" 
+                className="btn btn-yellow btn-lg"
+                style={{ borderRadius: 'var(--radius-full)', padding: '0.75rem 2rem', fontWeight: 700 }}
+              >
+                Learn More
+              </Link>
+            </div>
+          </div>
+
+          {/* Right Column Illustration Graphic */}
+          <div style={{
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'var(--accent-yellow-subtle)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-xl)',
+            padding: '2.5rem 1.5rem',
+            overflow: 'hidden',
+            boxShadow: 'var(--shadow-md)',
+          }}>
+            <div style={{
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '1rem',
+            }}>
+              <div style={{
+                width: 140,
+                height: 140,
+                borderRadius: '50%',
+                backgroundColor: 'var(--bg-surface)',
+                border: '1px solid var(--border-subtle)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 8px 20px rgba(0,0,0,0.08)',
+              }}>
+                <ShoppingBag size={72} color="var(--accent-blue)" strokeWidth={1.8} />
+              </div>
+              <div style={{
+                backgroundColor: 'var(--bg-surface)',
+                border: '1px solid var(--border-subtle)',
+                padding: '0.75rem 1.5rem',
+                borderRadius: 'var(--radius-full)',
+                fontWeight: 700,
+                color: 'var(--text-primary)',
+                boxShadow: 'var(--shadow-sm)',
+                fontSize: '0.95rem',
+              }}>
+                🎓 University Campus Portal
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* 3 Bottom Feature Cards */}
+        <section style={{
+          maxWidth: 1200,
+          margin: '0 auto',
+          padding: '0 2rem',
+          width: '100%',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: '1.5rem',
+        }}>
+          {/* Card 1: Report */}
+          <div className="surface-card" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem', borderLeft: '4px solid var(--accent-blue)' }}>
+            <div style={{
+              width: 52,
+              height: 52,
+              borderRadius: '50%',
+              backgroundColor: 'var(--accent-blue)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#FFFFFF',
+              flexShrink: 0,
+            }}>
+              <AlertCircle size={26} />
+            </div>
+            <div>
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                Report Lost or Found
+              </h3>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                Easily post details and photos of items lost or found on campus.
+              </p>
+            </div>
+          </div>
+
+          {/* Card 2: Smart Matching */}
+          <div className="surface-card" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem', borderLeft: '4px solid var(--accent-coral)' }}>
+            <div style={{
+              width: 52,
+              height: 52,
+              borderRadius: '50%',
+              backgroundColor: 'var(--accent-coral)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#FFFFFF',
+              flexShrink: 0,
+            }}>
+              <Sparkles size={26} />
+            </div>
+            <div>
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                Smart Matching
+              </h3>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                Our system connects and alerts potential owners automatically.
+              </p>
+            </div>
+          </div>
+
+          {/* Card 3: Secure Communication */}
+          <div className="surface-card" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem', borderLeft: '4px solid var(--accent-blue)' }}>
+            <div style={{
+              width: 52,
+              height: 52,
+              borderRadius: '50%',
+              backgroundColor: 'var(--accent-blue)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#FFFFFF',
+              flexShrink: 0,
+            }}>
+              <MessageCircle size={26} />
+            </div>
+            <div>
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                Secure Communication
+              </h3>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                Chat safely with others within the platform to coordinate return.
+              </p>
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // SCREEN 3: AUTHENTICATED STUDENT DASHBOARD
+  // ==========================================
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      {/* Dashboard Greeting Header (Point 1 & Point 2: single Report button & reduced spacing) */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+        <div>
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+            Hello, {user?.name ? user.name.split(' ')[0] : 'Student'} 👋
+          </h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginTop: '0.15rem' }}>
+            What are you looking for today?
+          </p>
+        </div>
+        <Link 
+          to="/post" 
+          className="btn btn-primary"
+          style={{ padding: '0.6rem 1.25rem', borderRadius: 'var(--radius-md)' }}
+        >
+          <Plus size={16} strokeWidth={2.4} /> Report Item
+        </Link>
+      </div>
+
+      {/* Search Bar & Quick Filter Pills (Point 2: reduced gap with greeting, Point 4 & 10: functional search & clear) */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <form
+          onSubmit={handleSearch}
+          style={{
+            display: 'flex',
+            gap: '0.75rem',
+            alignItems: 'center',
+          }}
+        >
+          <div style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.65rem',
+            backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-md)',
+            padding: '0.65rem 1rem',
+            boxShadow: 'var(--shadow-sm)',
+          }}>
+            <Search size={18} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+            <input
+              type="text"
+              placeholder="Search by item title, category, description, or campus location..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label="Search items"
+              style={{
+                flex: 1,
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                color: 'var(--text-primary)',
+                fontSize: '0.9rem',
+              }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                title="Clear search"
+                aria-label="Clear search"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '0.2rem',
+                }}
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => navigate(`/items?search=${encodeURIComponent(searchQuery)}${selectedCategory ? `&category=${encodeURIComponent(selectedCategory)}` : ''}`)}
+            className="btn btn-secondary"
+            style={{ height: 44, padding: '0 1rem' }}
+            title="Open advanced filter options"
+          >
+            <SlidersHorizontal size={16} /> Filters
+          </button>
+        </form>
+
+        {/* Quick Status Filters (Point 10) */}
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className={`filter-chip ${statusFilter === 'ALL' ? 'active' : ''}`}
+            onClick={() => setStatusFilter('ALL')}
+          >
+            All Items ({items.length})
+          </button>
+          <button
+            type="button"
+            className={`filter-chip ${statusFilter === 'LOST' ? 'active' : ''}`}
+            onClick={() => setStatusFilter('LOST')}
+          >
+            Lost ({items.filter((i) => i.type === 'LOST').length})
+          </button>
+          <button
+            type="button"
+            className={`filter-chip ${statusFilter === 'FOUND' ? 'active' : ''}`}
+            onClick={() => setStatusFilter('FOUND')}
+          >
+            Found ({items.filter((i) => i.type === 'FOUND').length})
+          </button>
+
+          {(selectedCategory || searchQuery || statusFilter !== 'ALL') && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedCategory(null);
+                setSearchQuery('');
+                setStatusFilter('ALL');
+              }}
+              style={{
+                marginLeft: 'auto',
+                fontSize: '0.775rem',
+                color: 'var(--accent-coral)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+              }}
+            >
+              <X size={14} /> Clear active filters
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Browse Categories Row (Point 3: uniform size & Point 9: functional filter) */}
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+          <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+            Browse Categories
+          </h2>
+          {selectedCategory && (
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              Filtering: <strong style={{ color: 'var(--accent-blue)' }}>{selectedCategory}</strong>
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: '0.85rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+          {/* All Categories Option */}
+          <div
+            onClick={() => setSelectedCategory(null)}
+            className="category-tile"
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedCategory(null); }}
+            aria-label="All Categories"
+            aria-pressed={selectedCategory === null}
+          >
+            <div className="category-icon-box" style={{ backgroundColor: '#1E293B' }}>
+              <LayoutGrid size={20} />
+            </div>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', textAlign: 'center' }}>
+              All
+            </span>
+          </div>
+
+          {categories.map((cat) => (
+            <div
+              key={cat}
+              onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
+              className={`category-tile ${selectedCategory === cat ? 'active' : ''}`}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedCategory(selectedCategory === cat ? null : cat); }}
+              aria-label={`Category ${cat}`}
+              aria-pressed={selectedCategory === cat}
+            >
+              <div
+                className="category-icon-box"
+                style={{ backgroundColor: getCategoryBg(cat) }}
+              >
+                {getCategoryIcon(cat)}
+              </div>
+              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', textAlign: 'center' }}>
+                {cat}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Recent Listings Section (Point 12, 15, 16, 19, 21) */}
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+          <div>
+            <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              Recent Listings
+            </h2>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              Showing {filteredItems.length} open {filteredItems.length === 1 ? 'item' : 'items'}
+              {selectedCategory && ` in ${selectedCategory}`}
+            </span>
+          </div>
+          <Link 
+            to={selectedCategory ? `/items?category=${encodeURIComponent(selectedCategory)}` : '/items'} 
+            style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--accent-blue)' }}
+          >
+            View all →
+          </Link>
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '3.5rem 1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+            <div className="spin-animation" style={{ color: 'var(--accent-blue)', display: 'flex' }}>
+              <Sparkles size={28} />
+            </div>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Loading campus listings...</p>
+          </div>
+        ) : filteredItems.length === 0 ? (
+          <div className="surface-card" style={{ textAlign: 'center', padding: '3.5rem 1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{
+              width: 52,
+              height: 52,
+              borderRadius: '50%',
+              backgroundColor: 'var(--bg-elevated)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--text-muted)',
+            }}>
+              <Search size={24} />
+            </div>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              No matching listings found
+            </h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', maxWidth: 440 }}>
+              {searchQuery || selectedCategory || statusFilter !== 'ALL'
+                ? `No items match your active filters (${[
+                    searchQuery ? `query "${searchQuery}"` : null,
+                    selectedCategory ? `category "${selectedCategory}"` : null,
+                    statusFilter !== 'ALL' ? `type "${statusFilter}"` : null
+                  ].filter(Boolean).join(', ')}).`
+                : 'There are currently no open listings on campus.'}
+            </p>
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+              {(searchQuery || selectedCategory || statusFilter !== 'ALL') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedCategory(null);
+                    setStatusFilter('ALL');
+                  }}
+                  className="btn btn-secondary btn-sm"
+                >
+                  Reset Filters
+                </button>
+              )}
+              <Link to="/post" className="btn btn-primary btn-sm">
+                <Plus size={14} /> Report Item
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="grid-cards">
+            {filteredItems.map((item) => (
+              <ItemCard key={item.id} item={item} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
